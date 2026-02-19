@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { createWavyGroundGeometry, sampleTerrainHeight } from './geometries.js';
+import { loadCactusObj, createCactus } from './loaders/cactus1.js';
+import { Dino } from './loaders/dino.js'
 
 // scene, camera, renderer
 const scene = new THREE.Scene();
@@ -15,7 +17,7 @@ renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
 // lights 
-const ambient = new THREE.AmbientLight(0x404060);
+const ambient = new THREE.AmbientLight(0xf7c592, 0.8);
 scene.add(ambient);
 const dir = new THREE.DirectionalLight(0xffffff, 0.95);
 dir.position.set(0, 20, 10);
@@ -24,27 +26,9 @@ const fill = new THREE.DirectionalLight(0xaaccff, 0.35);
 fill.position.set(5, 8, -5);
 scene.add(fill);
 
-// placeholder dino 
-const dinoMat = new THREE.MeshPhongMaterial({ color: 0x2d5a27, shininess: 30 });
-const dinoBody = new THREE.Mesh(
-  new THREE.BoxGeometry(0.6, 0.5, 1),
-  dinoMat
-);
-dinoBody.position.set(0, 0.25, 0);
-dinoBody.castShadow = true;
-scene.add(dinoBody);
-
-const dinoHead = new THREE.Mesh(
-  new THREE.BoxGeometry(0.4, 0.35, 0.5),
-  dinoMat
-);
-dinoHead.position.set(0, 0.5, -0.5);
-dinoHead.castShadow = true;
-scene.add(dinoHead);
-const dino = new THREE.Group();
-dino.add(dinoBody);
-dino.add(dinoHead);
-scene.add(dino);
+// create dinosaur
+const dino = new Dino();
+dino.load(scene);
 
 // moving world 
 const SEGMENT_LENGTH = 24; // length  of one scrolling terrain segment in the z direction 
@@ -88,18 +72,19 @@ for (let i = 0; i < NUM_SEGMENTS; i++) {
   path.receiveShadow = true;
   seg.add(path);
 
-  // yellow placeholder marker to show path is moving
-  const marker = new THREE.Mesh(
-    new THREE.BoxGeometry(0.5, 0.08, 0.5),
-    segmentMarkerMat
-  );
-  marker.position.set(0, 0.02, -SEGMENT_LENGTH / 2);
-  seg.add(marker);
-
   seg.position.z = -i * SEGMENT_LENGTH;
   scene.add(seg);
   floorSegments.push(seg);
 }
+
+// add cactus to the floor segments
+loadCactusObj(() => {
+  for (let i = 0; i < floorSegments.length; i++) {
+    const cactus = createCactus();
+    cactus.position.set(0, 0, -SEGMENT_LENGTH / 2); // position fixed for now
+    floorSegments[i].add(cactus);
+  }
+});
 
 // Simple seeded PRNG to randomly scatter pebbles on the terrain 
 function mulberry32(seed) {
@@ -161,39 +146,6 @@ for (let si = 0; si < floorSegments.length; si++) {
   }
 }
 
-// jump physics
-const GRAVITY = 30;            // base gravity when space released
-const GRAVITY_HELD = 15;      // reduced gravity while holding space
-const JUMP_VELOCITY = 10;     // initial upward kick on press
-const MAX_JUMP_BOOST = 4;     // extra velocity added over hold duration
-const BOOST_DURATION = 0.3;   // seconds of hold that still add boost
-const GROUND_Y = 0;
-
-let dinoVelocityY = 0;
-let dinoY = GROUND_Y;
-let isOnGround = true;
-let spaceHeld = false;
-let holdTime = 0;
-
-window.addEventListener('keydown', (e) => {
-  if (e.code === 'Space') {
-    e.preventDefault();
-    if (!e.repeat && isOnGround) {
-      dinoVelocityY = JUMP_VELOCITY;
-      isOnGround = false;
-      holdTime = 0;
-    }
-    spaceHeld = true;
-  }
-});
-
-window.addEventListener('keyup', (e) => {
-  if (e.code === 'Space') {
-    e.preventDefault();
-    spaceHeld = false;
-  }
-});
-
 // animation
 const clock = new THREE.Clock();
 let scrollOffset = 0;
@@ -203,28 +155,9 @@ function animate() {
   const dt = clock.getDelta();
   scrollOffset += FLOOR_SPEED * dt;
 
+  // handle dino jump
+  dino.update(dt);
   
-  if (!isOnGround) {
-    //position dino with jump 
-    if (spaceHeld && dinoVelocityY > 0 && holdTime < BOOST_DURATION) {
-      holdTime += dt;
-      dinoVelocityY += (MAX_JUMP_BOOST / BOOST_DURATION) * dt;
-      dinoVelocityY -= GRAVITY_HELD * dt;
-    } else {
-      dinoVelocityY -= GRAVITY * dt;
-    }
-
-    dinoY += dinoVelocityY * dt;
-
-    if (dinoY <= GROUND_Y) {
-      dinoY = GROUND_Y;
-      dinoVelocityY = 0;
-      isOnGround = true;
-    }
-  }
-
-  dino.position.y = dinoY;
-
   // scroll floor segments 
   for (let i = 0; i < NUM_SEGMENTS; i++) {
     let z = -i * SEGMENT_LENGTH + scrollOffset;
@@ -238,7 +171,6 @@ function animate() {
   renderer.render(scene, camera);
 }
 renderer.setAnimationLoop(animate);
-
 
 
 window.addEventListener('resize', () => {
