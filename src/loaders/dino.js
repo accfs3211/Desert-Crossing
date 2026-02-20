@@ -145,7 +145,7 @@ export class Dino {
     }
 
     keyup(e) {
-        if (e.code === 'Space'){
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW'){
             e.preventDefault();
             this.spaceHeld = false;
         }
