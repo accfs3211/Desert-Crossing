@@ -50,6 +50,10 @@ scene.add(dino);
 const SEGMENT_LENGTH = 24; // length  of one scrolling terrain segment in the z direction 
 const GROUND_WIDTH = 500; // total terrain width across x
 const PATH_WIDTH = 8; // width of the central playable path
+const LANE_COUNT = 3; // left, center, right
+const LANE_SPACING = PATH_WIDTH / LANE_COUNT; // x-distance between adjacent lanes
+const LANE_MOVE_SPEED = 12; // lateral speed (units/sec) toward target lane
+const LANE_SWITCH_COOLDOWN = 0.1; // delay between lane switch inputs (100 ms)
 const NUM_SEGMENTS = 16; // number of terrain segments kept in rotation
 const FLOOR_SPEED = 6; // how fast segments move toward the camera
 const WRAP_THRESHOLD = SEGMENT_LENGTH + 15; // z position where a segment is recycled to the back
@@ -166,7 +170,7 @@ const GRAVITY = 30;            // base gravity when space released
 const GRAVITY_HELD = 15;      // reduced gravity while holding space
 const JUMP_VELOCITY = 10;     // initial upward kick on press
 const MAX_JUMP_BOOST = 4;     // extra velocity added over hold duration
-const BOOST_DURATION = 0.3;   // seconds of hold that still add boost
+const BOOST_DURATION = 0.3;   // seconds of hold that still add boost, aka longer you press higher you jump 
 const GROUND_Y = 0;
 
 let dinoVelocityY = 0;
@@ -174,6 +178,10 @@ let dinoY = GROUND_Y;
 let isOnGround = true;
 let spaceHeld = false;
 let holdTime = 0;
+let currentLane = 1; // 0 left, 1 center, 2 right
+let targetLane = 1;
+let laneCooldownRemaining = 0;
+let dinoVelocityX = 0;
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'Space') {
@@ -184,6 +192,20 @@ window.addEventListener('keydown', (e) => {
       holdTime = 0;
     }
     spaceHeld = true;
+
+  // allow jumping during side to side movement, but not allowing moving sideways while airborne 
+  } else if (isOnGround && !e.repeat && (e.code === 'ArrowLeft' || e.code === 'KeyA')) {
+    e.preventDefault();
+    if (laneCooldownRemaining <= 0) {
+      targetLane = Math.max(0, targetLane - 1);
+      laneCooldownRemaining = LANE_SWITCH_COOLDOWN;
+    }
+  } else if (isOnGround && !e.repeat && (e.code === 'ArrowRight' || e.code === 'KeyD')) {
+    e.preventDefault();
+    if (laneCooldownRemaining <= 0) {
+      targetLane = Math.min(LANE_COUNT - 1, targetLane + 1);
+      laneCooldownRemaining = LANE_SWITCH_COOLDOWN;
+    }
   }
 });
 
@@ -202,15 +224,18 @@ const TOTAL_LENGTH = NUM_SEGMENTS * SEGMENT_LENGTH;
 function animate() {
   const dt = clock.getDelta();
   scrollOffset += FLOOR_SPEED * dt;
+  laneCooldownRemaining = Math.max(0, laneCooldownRemaining - dt);
 
   
   if (!isOnGround) {
-    //position dino with jump 
+    // calculate vertical motion using velocity integration (v += a*dt, y += v*dt)
     if (spaceHeld && dinoVelocityY > 0 && holdTime < BOOST_DURATION) {
       holdTime += dt;
+      // wile jump is held, add extra upward boost and use reduced gravity.
       dinoVelocityY += (MAX_JUMP_BOOST / BOOST_DURATION) * dt;
       dinoVelocityY -= GRAVITY_HELD * dt;
     } else {
+      // normal airborne phase, only gravity affects vertical velocity.
       dinoVelocityY -= GRAVITY * dt;
     }
 
@@ -223,7 +248,26 @@ function animate() {
     }
   }
 
+  
   dino.position.y = dinoY;
+  const targetX = (targetLane - 1) * LANE_SPACING;
+  const dx = targetX - dino.position.x;
+  if (Math.abs(dx) > 0.001) {
+    const dir = Math.sign(dx);
+    // Lateral velocity is fixed-speed toward target lane (sign decides direction).
+    dinoVelocityX = dir * LANE_MOVE_SPEED;
+    const step = dinoVelocityX * dt;
+    // move by x velocity each frame, clamp if we overshoot the target lane.
+    if (Math.abs(step) >= Math.abs(dx)) {
+      dino.position.x = targetX;
+      dinoVelocityX = 0;
+      currentLane = targetLane;
+    } else {
+      dino.position.x += step;
+    }
+  } else {
+    dinoVelocityX = 0;
+  }
 
   // scroll floor segments 
   for (let i = 0; i < NUM_SEGMENTS; i++) {
