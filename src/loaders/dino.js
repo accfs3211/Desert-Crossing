@@ -7,17 +7,34 @@ const JUMP_VELOCITY = 10;
 const MAX_JUMP_BOOST = 4;
 const BOOST_DURATION = 0.3;
 const GROUND_Y = 0;
+const DEFAULT_LANE_COUNT = 3;
+const DEFAULT_LANE_SPACING = 8 / 3;
+const DEFAULT_LANE_MOVE_SPEED = 12;
+const DEFAULT_LANE_SWITCH_COOLDOWN = 0.1;
+const DEFAULT_SPAWN_Y = GROUND_Y;
 
 export class Dino {
-    constructor() {
+    constructor(options = {}) {
         this.model = null;
         this.offsetY = 0;
 
-        this.y = GROUND_Y;
+        this.y = options.spawnY ?? DEFAULT_SPAWN_Y;
         this.velocityY = 0;
-        this.isOnGround = true;
+        this.isOnGround = this.y <= GROUND_Y;
         this.spaceHeld = false;
         this.holdTime = 0;
+        this.velocityX = 0;
+
+        // Lane movement config/state
+        this.laneCount = options.laneCount ?? DEFAULT_LANE_COUNT;
+        this.laneSpacing = options.laneSpacing ?? DEFAULT_LANE_SPACING;
+        this.laneMoveSpeed = options.laneMoveSpeed ?? DEFAULT_LANE_MOVE_SPEED;
+        this.laneSwitchCooldown = options.laneSwitchCooldown ?? DEFAULT_LANE_SWITCH_COOLDOWN; // total time between lane switches 
+        this.laneCooldownRemaining = 0; // time remaining before another lane switch 
+        this.currentLane = 1; // 0 left, 1 center, 2 right
+        this.targetLane = 1;
+        
+        this.airMoveUsed = false; // currently, dino can only move once in midair so it doesn't look like it's just flying 
 
         this.keydown = this.keydown.bind(this);
         this.keyup = this.keyup.bind(this);
@@ -53,6 +70,8 @@ export class Dino {
     update(dt) {
         if (!this.model) return;
 
+        this.laneCooldownRemaining = Math.max(0, this.laneCooldownRemaining - dt);
+
         if (!this.isOnGround) {
             if (this.spaceHeld && this.velocityY > 0 && this.holdTime < BOOST_DURATION) {
                 this.holdTime += dt;
@@ -68,22 +87,61 @@ export class Dino {
                 this.y = GROUND_Y;
                 this.velocityY = 0;
                 this.isOnGround = true;
+                this.airMoveUsed = false;
             }
         }
 
         this.model.position.y = this.y + this.offsetY;
+
+        // Keep lateral movement active even when airborne if it started on ground.
+        const targetX = (this.targetLane - 1) * this.laneSpacing;
+        const dx = targetX - this.model.position.x;
+        if (Math.abs(dx) > 0.001) {
+            const dir = Math.sign(dx);
+            this.velocityX = dir * this.laneMoveSpeed;
+            const step = this.velocityX * dt;
+            if (Math.abs(step) >= Math.abs(dx)) {
+                this.model.position.x = targetX;
+                this.velocityX = 0;
+                this.currentLane = this.targetLane;
+            } else {
+                this.model.position.x += step;
+            }
+        } else {
+            this.velocityX = 0;
+            this.currentLane = this.targetLane;
+        }
     }
 
     keydown(e) {
-        if (e.code === 'Space') {
+        if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
             e.preventDefault();
             if (!e.repeat && this.isOnGround) {
                 this.velocityY = JUMP_VELOCITY;
                 this.isOnGround = false;
                 this.holdTime = 0;
+                this.airMoveUsed = false;
             }
             this.spaceHeld = true;
-        }  
+        } else if (!e.repeat && (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'ArrowRight' || e.code === 'KeyD')) {
+            e.preventDefault();
+            if (this.laneCooldownRemaining > 0) return;
+
+            const direction = (e.code === 'ArrowLeft' || e.code === 'KeyA') ? -1 : 1;
+            const nextLane = Math.max(0, Math.min(this.laneCount - 1, this.targetLane + direction));
+
+            // Ignore out-of-bounds attempts so they do not consume the in-air move.
+            if (nextLane === this.targetLane) return;
+
+            if (!this.isOnGround && this.airMoveUsed) return;
+
+            this.targetLane = nextLane;
+            this.laneCooldownRemaining = this.laneSwitchCooldown;
+
+            if (!this.isOnGround) {
+                this.airMoveUsed = true;
+            }
+        }
     }
 
     keyup(e) {

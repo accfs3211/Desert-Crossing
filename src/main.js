@@ -27,17 +27,13 @@ fill.position.set(5, 8, -5);
 scene.add(fill);
 
 // create dinosaur
-const dino = new Dino();
+const dino = new Dino({ spawnY: 4.5 });
 dino.load(scene);
 
 // moving world 
 const SEGMENT_LENGTH = 24; // length  of one scrolling terrain segment in the z direction 
 const GROUND_WIDTH = 500; // total terrain width across x
 const PATH_WIDTH = 8; // width of the central playable path
-const LANE_COUNT = 3; // left, center, right
-const LANE_SPACING = PATH_WIDTH / LANE_COUNT; // x-distance between adjacent lanes
-const LANE_MOVE_SPEED = 12; // lateral speed (units/sec) toward target lane
-const LANE_SWITCH_COOLDOWN = 0.1; // delay between lane switch inputs (100 ms)
 const NUM_SEGMENTS = 16; // number of terrain segments kept in rotation
 const FLOOR_SPEED = 6; // how fast segments move toward the camera
 const WRAP_THRESHOLD = SEGMENT_LENGTH + 15; // z position where a segment is recycled to the back
@@ -158,7 +154,6 @@ const TOTAL_LENGTH = NUM_SEGMENTS * SEGMENT_LENGTH;
 function animate() {
   const dt = clock.getDelta();
   scrollOffset += FLOOR_SPEED * dt;
-  laneCooldownRemaining = Math.max(0, laneCooldownRemaining - dt);
 
   // handle dino jump
   dino.update(dt);
