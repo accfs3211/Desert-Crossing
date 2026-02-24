@@ -3,6 +3,8 @@ import { createWavyGroundGeometry, sampleTerrainHeight } from './geometries.js';
 import { loadCactusObj, createCactus } from './loaders/cactus1.js';
 import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/deadBushes.js';
 import { Dino } from './loaders/dino.js'
+import { createGameState } from './state.js';
+import { createCollisionSystem } from './collision.js';
 
 // scene, camera, renderer
 const scene = new THREE.Scene();
@@ -28,7 +30,8 @@ fill.position.set(5, 8, -5);
 scene.add(fill);
 
 // create dinosaur
-const dino = new Dino({ spawnY: 4.5 });
+const DINO_SPAWN_Y = 4.5;
+const dino = new Dino({ spawnY: DINO_SPAWN_Y });
 dino.load(scene);
 
 // moving world 
@@ -55,6 +58,7 @@ const groundGeo = createWavyGroundGeometry(
 );
 
 const floorSegments = [];
+const obstacles = []; // to be generalized for multiple obstacle types later
 for (let i = 0; i < NUM_SEGMENTS; i++) {
   const seg = new THREE.Group();
 
@@ -83,7 +87,10 @@ loadCactusObj(() => {
   for (let i = 0; i < floorSegments.length; i++) {
     const cactus = createCactus();
     cactus.position.set(0, 0, -SEGMENT_LENGTH / 2); // position fixed for now
+    cactus.userData.obstacleType = 'cactus';
+    cactus.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
     floorSegments[i].add(cactus);
+    obstacles.push(cactus);
   }
 });
 
@@ -190,10 +197,52 @@ for (let si = 0; si < floorSegments.length; si++) {
 const clock = new THREE.Clock();
 let scrollOffset = 0;
 const TOTAL_LENGTH = NUM_SEGMENTS * SEGMENT_LENGTH;
+const collisionSystem = createCollisionSystem({
+  // tightened player hitbox (to reduce false positives)
+  playerShrink: new THREE.Vector3(0.2, 0.15, 0.2)
+});
+
+function resetDinoState() {
+  dino.y = DINO_SPAWN_Y;
+  dino.velocityY = 0;
+  dino.isOnGround = dino.y <= 0;
+  dino.spaceHeld = false;
+  dino.holdTime = 0;
+  dino.velocityX = 0;
+  dino.airMoveUsed = false;
+  dino.currentLane = 1;
+  dino.targetLane = 1;
+  dino.laneCooldownRemaining = 0;
+  if (dino.model) {
+    dino.model.position.x = 0;
+    dino.model.position.y = DINO_SPAWN_Y + dino.offsetY;
+  }
+}
+
+function resetGame() {
+  scrollOffset = 0;
+  resetDinoState();
+  for (let i = 0; i < NUM_SEGMENTS; i++) {
+    floorSegments[i].position.z = -i * SEGMENT_LENGTH;
+  }
+  gameState.reset();
+}
+
+const gameState = createGameState({
+  scorePerSecond: 10,
+  // restart button in state UI calls back here to reset world
+  onRestart: resetGame
+});
 
 function animate() {
+  if (gameState.isGameOver()) {
+    renderer.render(scene, camera);
+    return;
+  }
+
   const dt = clock.getDelta();
   scrollOffset += FLOOR_SPEED * dt;
+  gameState.tick(dt);
 
   // handle dino jump
   dino.update(dt);
@@ -208,6 +257,10 @@ function animate() {
     floorSegments[i].position.z = z;
   }
 
+  const collided = collisionSystem.checkPlayerVsObstacles(scene, dino.model, obstacles);
+  if (collided) {
+    gameState.setGameOver();
+  }
   renderer.render(scene, camera);
 }
 renderer.setAnimationLoop(animate);
