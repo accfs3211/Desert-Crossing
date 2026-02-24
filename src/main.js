@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createWavyGroundGeometry, sampleTerrainHeight } from './geometries.js';
 import { loadCactusObj, createCactus } from './loaders/cactus1.js';
+import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/deadBushes.js';
 import { Dino } from './loaders/dino.js'
 
 // scene, camera, renderer
@@ -86,6 +87,44 @@ loadCactusObj(() => {
   }
 });
 
+// add dead bushes to floor segments
+loadDeadBushObj(() => {
+  const bushCount = getDeadBushCount();
+  if (bushCount === 0) return;
+
+  for (let i = 0; i < floorSegments.length; i++) {
+    const seg = floorSegments[i];
+    const rng = mulberry32(i * 1879 + 911);
+
+    for (let xi = -SCATTER_HALF; xi < SCATTER_HALF; xi++) {
+      for (let zi = 0; zi < SEGMENT_LENGTH; zi++) {
+        if (Math.abs(xi + 0.5) < PATH_HALF) continue; // skip path area
+        if (rng() > BUSH_SPAWN_CHANCE) continue; // 1 in 300 spawn chance
+
+        const bushIdx = Math.floor(rng() * bushCount);
+        const bush = createDeadBush(bushIdx);
+        if (!bush) continue;
+
+        const px = xi + rng();
+        const pz = -SEGMENT_LENGTH / 2 + zi + rng();
+        const py = sampleTerrainHeight(
+          px,
+          pz,
+          SEGMENT_LENGTH,
+          TERRAIN_FLAT_HALF,
+          TERRAIN_FLAT_BLEND
+        );
+
+        bush.position.set(px, py, pz);
+        bush.rotation.set(0, rng() * Math.PI * 2, 0); // keep bushes upright
+        const bushScale = (0.85 + rng() * 0.35) * 2;
+        bush.scale.multiplyScalar(bushScale);
+        seg.add(bush);
+      }
+    }
+  }
+});
+
 // Simple seeded PRNG to randomly scatter pebbles on the terrain 
 function mulberry32(seed) {
   return function () {
@@ -113,6 +152,7 @@ const pebbleGeos = [
 const pebbleMat = new THREE.MeshPhongMaterial({ color: 0xa09080, shininess: 15 });
 const SCATTER_HALF = 40; // scatter pebbles +-40 units from center
 const PATH_HALF = PATH_WIDTH / 2 + 0.5; // keep pebbles off the path
+const BUSH_SPAWN_CHANCE = 1 / 300;
 
 for (let si = 0; si < floorSegments.length; si++) {
   const seg = floorSegments[si];

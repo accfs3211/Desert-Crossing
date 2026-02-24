@@ -34,7 +34,7 @@ export class Dino {
         this.currentLane = 1; // 0 left, 1 center, 2 right
         this.targetLane = 1;
         
-        this.airMoveUsed = false; // currently, dino can only move once in midair so it doesn't look like it's just flying 
+        this.airMoveUsed = false; // currently, dino can only move once in mid air so it doesn't look like it's just flying 
 
         this.keydown = this.keydown.bind(this);
         this.keyup = this.keyup.bind(this);
