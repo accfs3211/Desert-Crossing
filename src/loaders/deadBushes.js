@@ -75,7 +75,7 @@ export function loadDeadBushObj(callback) {
         },
         undefined,
         (err) => {
-            console.error('Failed to load assets/dead_bushes.glb', err);
+            console.error('Failed to load dead_bushes.glb', err);
         }
     );
 }
