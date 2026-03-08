@@ -26,22 +26,36 @@ export async function loadAllObstacles() {
 }
 
 export function generateObstacles(segment) {
+
     // remove old obstacles
     if (segment.userData.obstacles){
         segment.userData.obstacles.forEach(obj => {
             segment.remove(obj);
         });
     }
-    segment.userData.obstacles = []; 
 
-    const type = randomObstacle();
-    const obstacle = type.create();
+    segment.userData.obstacles = [];
 
-    obstacle.position.set((Math.random() - 0.5) * PATH_WIDTH * 0.8, 0, -SEGMENT_LENGTH / 2);
-    obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
+    const OBSTACLES_PER_SEGMENT = 2;
+    const spacing = SEGMENT_LENGTH / OBSTACLES_PER_SEGMENT;
 
-    segment.add(obstacle);
-    segment.userData.obstacles.push(obstacle);
+    for (let i = 0; i < OBSTACLES_PER_SEGMENT; i++) {
+
+        const type = randomObstacle();
+        const obstacle = type.create();
+
+        const jitter = spacing * 0.2;
+        const z = -SEGMENT_LENGTH + spacing * (i + 0.5) + (Math.random() - 0.5) * jitter;
+
+        const x = (Math.random() - 0.5) * PATH_WIDTH * 0.8;
+
+        obstacle.position.set(x, 0, z);
+
+        obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
+
+        segment.add(obstacle);
+        segment.userData.obstacles.push(obstacle);
+    }
 }
 
 function randomObstacle() {
