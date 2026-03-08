@@ -100,10 +100,12 @@ for (let i = 0; i < NUM_SEGMENTS; i++) {
 
 // load obstacles in from obstacles.js
 await loadAllObstacles();
-floorSegments.forEach(seg => {
-  generateObstacles(seg);
-});
 
+floorSegments.forEach((seg, index) => {
+  if (index >= 1 && index < floorSegments.length - 1) {
+    generateObstacles(seg);
+  }
+});
 
 // add dead bushes to floor segments
 loadDeadBushObj(() => {
@@ -233,10 +235,26 @@ function resetDinoState() {
 function resetGame() {
   scrollOffset = 0;
   resetDinoState();
+  resetObstacles();
   for (let i = 0; i < NUM_SEGMENTS; i++) {
     floorSegments[i].position.z = -i * SEGMENT_LENGTH;
   }
   gameState.reset();
+}
+
+function resetObstacles(){
+  for (let i = 0; i < NUM_SEGMENTS; i++) {
+    const seg = floorSegments[i];
+
+    if (i >= 1 && i < floorSegments.length - 1) {
+      generateObstacles(seg);
+    } else {
+      if (seg.userData.obstacles) {
+        seg.userData.obstacles.forEach(obj => seg.remove(obj));
+      }
+      seg.userData.obstacles = [];
+    }
+  }
 }
 
 const gameState = createGameState({
