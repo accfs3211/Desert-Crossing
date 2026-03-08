@@ -5,6 +5,7 @@ import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/dea
 import { Dino } from './loaders/dino.js'
 import { createGameState } from './state.js';
 import { createCollisionSystem } from './collision.js';
+import { loadAllObstacles, generateObstacles } from './obstacles.js';
 
 // scene, camera, renderer
 const scene = new THREE.Scene();
@@ -58,7 +59,7 @@ const groundGeo = createWavyGroundGeometry(
 );
 
 const floorSegments = [];
-const obstacles = []; // to be generalized for multiple obstacle types later
+//const obstacles = []; // to be generalized for multiple obstacle types later
 for (let i = 0; i < NUM_SEGMENTS; i++) {
   const seg = new THREE.Group();
 
@@ -77,22 +78,32 @@ for (let i = 0; i < NUM_SEGMENTS; i++) {
   path.receiveShadow = true;
   seg.add(path);
 
+  // for storing the segment's obstacles
+  seg.userData.obstacles = [];
+
   seg.position.z = -i * SEGMENT_LENGTH;
   scene.add(seg);
   floorSegments.push(seg);
 }
 
 // add cactus to the floor segments
-loadCactusObj(() => {
-  for (let i = 0; i < floorSegments.length; i++) {
-    const cactus = createCactus();
-    cactus.position.set(0, 0, -SEGMENT_LENGTH / 2); // position fixed for now
-    cactus.userData.obstacleType = 'cactus';
-    cactus.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
-    floorSegments[i].add(cactus);
-    obstacles.push(cactus);
-  }
+// loadCactusObj(() => {
+//   for (let i = 0; i < floorSegments.length; i++) {
+//     const cactus = createCactus();
+//     cactus.position.set(0, 0, -SEGMENT_LENGTH / 2); // position fixed for now
+//     cactus.userData.obstacleType = 'cactus';
+//     cactus.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
+//     floorSegments[i].add(cactus);
+//     obstacles.push(cactus);
+//   }
+// });
+
+// load obstacles in from obstacles.js
+await loadAllObstacles();
+floorSegments.forEach(seg => {
+  generateObstacles(seg);
 });
+
 
 // add dead bushes to floor segments
 loadDeadBushObj(() => {
@@ -249,15 +260,27 @@ function animate() {
   
   // scroll floor segments 
   for (let i = 0; i < NUM_SEGMENTS; i++) {
+    const segment = floorSegments[i];
+    const oldZPos = segment.position.z;
+
     let z = -i * SEGMENT_LENGTH + scrollOffset;
     z = ((z - WRAP_THRESHOLD) % TOTAL_LENGTH);
     if (z > 0) z -= TOTAL_LENGTH;
     z += WRAP_THRESHOLD;
 
-    floorSegments[i].position.z = z;
+    segment.position.z = z;
+  
+    // detect if floor segment has wrapped around
+    if (oldZPos > 0 && z < -SEGMENT_LENGTH) {
+      generateObstacles(segment)
+    }
   }
 
-  const collided = collisionSystem.checkPlayerVsObstacles(scene, dino.model, obstacles);
+  const nearbyObstacles = floorSegments
+    .filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH)
+    .flatMap(seg => seg.userData.obstacles || []);
+
+  const collided = collisionSystem.checkPlayerVsObstacles(scene, dino.model, nearbyObstacles);
   if (collided) {
     gameState.setGameOver();
   }
