@@ -40,7 +40,7 @@ const SEGMENT_LENGTH = 24; // length  of one scrolling terrain segment in the z 
 const GROUND_WIDTH = 500; // total terrain width across x
 const PATH_WIDTH = 8; // width of the central playable path
 const NUM_SEGMENTS = 16; // number of terrain segments kept in rotation
-const FLOOR_SPEED = 6; // how fast segments move toward the camera
+const BASE_FLOOR_SPEED = 7; // base speed segments move toward the camera
 const WRAP_THRESHOLD = SEGMENT_LENGTH + 15; // z position where a segment is recycled to the back
 const TERRAIN_FLAT_HALF = PATH_WIDTH / 2 + 0.8; // Half-width of center area flattened for gameplay
 const TERRAIN_FLAT_BLEND = 2.4; // Blend distance from flat path to full dune height
@@ -176,6 +176,10 @@ const PATH_HALF = PATH_WIDTH / 2 + 0.5; // keep pebbles off the path
 const BUSH_SPAWN_CHANCE = 1 / 300;
 const COIN_POINTS = 20;
 const COIN_SPIN_SPEED = 3.6; // radians per second
+const DAY_NIGHT_INTERVAL = 20; // seconds
+const THEME_TRANSITION_DURATION = 2.5; // seconds
+const SPEED_UP_INTERVAL_SECONDS = 40; // every full day+night cycle
+const SPEED_UP_MULTIPLIER = 1.5;
 
 for (let si = 0; si < floorSegments.length; si++) {
   const seg = floorSegments[si];
@@ -212,11 +216,73 @@ for (let si = 0; si < floorSegments.length; si++) {
 // animation
 const clock = new THREE.Clock();
 let scrollOffset = 0;
+let dayNightTimer = 0;
+let targetNight = false;
+let themeBlend = 0; // 0 day, 1 night
+let survivalTime = 0;
+let dayCount = 0;
+let nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
+let currentFloorSpeed = BASE_FLOOR_SPEED;
 const TOTAL_LENGTH = NUM_SEGMENTS * SEGMENT_LENGTH;
 const collisionSystem = createCollisionSystem({
   // tightened player hitbox (to reduce false positives)
   playerShrink: new THREE.Vector3(0.2, 0.15, 0.2)
 });
+
+const DAY_THEME = {
+  sky: 0x87ceeb,
+  ground: 0xd4b483,
+  path: 0xc4a46c,
+  pebbles: 0xa09080,
+  ambientColor: 0xf7c592,
+  ambientIntensity: 0.8,
+  dirColor: 0xffffff,
+  dirIntensity: 0.95,
+  fillColor: 0xaaccff,
+  fillIntensity: 0.35
+};
+
+const NIGHT_THEME = {
+  sky: 0x050b1f,
+  ground: 0x2a3550,
+  path: 0x3a4764,
+  pebbles: 0x58657d,
+  ambientColor: 0x3f4d71,
+  ambientIntensity: 0.44,
+  dirColor: 0x8fa0d8,
+  dirIntensity: 0.62,
+  fillColor: 0x4f5d86,
+  fillIntensity: 0.28
+};
+
+const themeColorA = new THREE.Color();
+const themeColorB = new THREE.Color();
+
+function lerpHexColor(dayHex, nightHex, t) {
+  themeColorA.setHex(dayHex);
+  themeColorB.setHex(nightHex);
+  return themeColorA.lerp(themeColorB, t);
+}
+
+function lerpNumber(dayValue, nightValue, t) {
+  return dayValue + (nightValue - dayValue) * t;
+}
+
+function applyWorldThemeByBlend(t) {
+  scene.background.copy(lerpHexColor(DAY_THEME.sky, NIGHT_THEME.sky, t));
+  groundMat.color.copy(lerpHexColor(DAY_THEME.ground, NIGHT_THEME.ground, t));
+  pathMat.color.copy(lerpHexColor(DAY_THEME.path, NIGHT_THEME.path, t));
+  pebbleMat.color.copy(lerpHexColor(DAY_THEME.pebbles, NIGHT_THEME.pebbles, t));
+
+  ambient.color.copy(lerpHexColor(DAY_THEME.ambientColor, NIGHT_THEME.ambientColor, t));
+  ambient.intensity = lerpNumber(DAY_THEME.ambientIntensity, NIGHT_THEME.ambientIntensity, t);
+  dir.color.copy(lerpHexColor(DAY_THEME.dirColor, NIGHT_THEME.dirColor, t));
+  dir.intensity = lerpNumber(DAY_THEME.dirIntensity, NIGHT_THEME.dirIntensity, t);
+  fill.color.copy(lerpHexColor(DAY_THEME.fillColor, NIGHT_THEME.fillColor, t));
+  fill.intensity = lerpNumber(DAY_THEME.fillIntensity, NIGHT_THEME.fillIntensity, t);
+}
+
+applyWorldThemeByBlend(0);
 
 function resetDinoState() {
   dino.y = DINO_SPAWN_Y;
@@ -237,6 +303,14 @@ function resetDinoState() {
 
 function resetGame() {
   scrollOffset = 0;
+  dayNightTimer = 0;
+  targetNight = false;
+  themeBlend = 0;
+  survivalTime = 0;
+  dayCount = 0;
+  nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
+  currentFloorSpeed = BASE_FLOOR_SPEED;
+  applyWorldThemeByBlend(0);
   resetDinoState();
   resetObstacles();
   for (let i = 0; i < NUM_SEGMENTS; i++) {
@@ -278,7 +352,24 @@ function animate() {
   }
 
   const dt = clock.getDelta();
-  scrollOffset += FLOOR_SPEED * dt;
+  survivalTime += dt;
+  while (survivalTime >= nextSpeedUpAt) {
+    dayCount += 1;
+    nextSpeedUpAt += SPEED_UP_INTERVAL_SECONDS;
+    currentFloorSpeed *= SPEED_UP_MULTIPLIER;
+    gameState.setDayCount(dayCount);
+    const dayWord = dayCount === 1 ? 'day' : 'days';
+    gameState.showNotice(`You survived ${dayCount} ${dayWord}! Speed Up!`);
+  }
+  scrollOffset += currentFloorSpeed * dt;
+  dayNightTimer += dt;
+  while (dayNightTimer >= DAY_NIGHT_INTERVAL) {
+    dayNightTimer -= DAY_NIGHT_INTERVAL;
+    targetNight = !targetNight;
+  }
+  const direction = targetNight ? 1 : -1;
+  themeBlend = Math.max(0, Math.min(1, themeBlend + (direction * dt) / THEME_TRANSITION_DURATION));
+  applyWorldThemeByBlend(themeBlend);
   gameState.tick(dt);
 
   // handle dino jump
