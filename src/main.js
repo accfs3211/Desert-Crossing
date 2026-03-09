@@ -6,6 +6,7 @@ import { Dino } from './loaders/dino.js'
 import { createGameState } from './state.js';
 import { createCollisionSystem } from './collision.js';
 import { loadAllObstacles, generateObstacles, generateCoins } from './obstacles.js';
+import { createAudioSystem } from './audio.js';
 
 // scene, camera, renderer
 const scene = new THREE.Scene();
@@ -32,7 +33,13 @@ scene.add(fill);
 
 // create dinosaur
 const DINO_SPAWN_Y = 4.5;
-const dino = new Dino({ spawnY: DINO_SPAWN_Y });
+const audioSystem = createAudioSystem();
+audioSystem.enableAutoplayUnlock();
+
+const dino = new Dino({
+  spawnY: DINO_SPAWN_Y,
+  onJump: () => audioSystem.playJump()
+});
 dino.load(scene);
 
 // moving world 
@@ -310,6 +317,7 @@ function resetGame() {
   dayCount = 0;
   nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
   currentFloorSpeed = BASE_FLOOR_SPEED;
+  audioSystem.resetForRestart();
   applyWorldThemeByBlend(0);
   resetDinoState();
   resetObstacles();
@@ -357,6 +365,7 @@ function animate() {
     dayCount += 1;
     nextSpeedUpAt += SPEED_UP_INTERVAL_SECONDS;
     currentFloorSpeed *= SPEED_UP_MULTIPLIER;
+    audioSystem.setMusicRate(1 + dayCount * 0.08);
     gameState.setDayCount(dayCount);
     const dayWord = dayCount === 1 ? 'day' : 'days';
     gameState.showNotice(`You survived ${dayCount} ${dayWord}! Speed Up!`);
@@ -413,11 +422,13 @@ function animate() {
     if (coin.userData.collected) continue;
     coin.userData.collected = true;
     coin.visible = false;
+    audioSystem.playCoin();
     gameState.addPoints(COIN_POINTS);
   }
 
   const collided = collisionSystem.checkPlayerVsObstacles(scene, dino.model, nearbyObstacles);
   if (collided) {
+    audioSystem.playGameOver();
     gameState.setGameOver();
   }
   renderer.render(scene, camera);
