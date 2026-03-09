@@ -37,7 +37,28 @@ export function createCollisionSystem(options = {}) {
     return false;
   }
 
+  function getOverlappingTargets(scene, playerModel, targets) {
+    if (!playerModel || !targets || targets.length === 0) return [];
+
+    scene.updateMatrixWorld(true);
+    playerHitbox.setFromObject(playerModel);
+
+    const overlaps = [];
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
+      if (!target || target.visible === false) continue;
+
+      obstacleHitbox.setFromObject(target);
+      const targetShrink = target.userData.hitboxShrink || zeroShrink;
+      if (intersectsWithShrink(playerHitbox, obstacleHitbox, playerShrink, targetShrink)) {
+        overlaps.push(target);
+      }
+    }
+    return overlaps;
+  }
+
   return {
-    checkPlayerVsObstacles
+    checkPlayerVsObstacles,
+    getOverlappingTargets
   };
 }

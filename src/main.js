@@ -5,7 +5,7 @@ import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/dea
 import { Dino } from './loaders/dino.js'
 import { createGameState } from './state.js';
 import { createCollisionSystem } from './collision.js';
-import { loadAllObstacles, generateObstacles } from './obstacles.js';
+import { loadAllObstacles, generateObstacles, generateCoins } from './obstacles.js';
 
 // scene, camera, renderer
 const scene = new THREE.Scene();
@@ -104,6 +104,7 @@ await loadAllObstacles();
 floorSegments.forEach((seg, index) => {
   if (index >= 1 && index < floorSegments.length - 1) {
     generateObstacles(seg);
+    generateCoins(seg);
   }
 });
 
@@ -173,6 +174,8 @@ const pebbleMat = new THREE.MeshPhongMaterial({ color: 0xa09080, shininess: 15 }
 const SCATTER_HALF = 40; // scatter pebbles +-40 units from center
 const PATH_HALF = PATH_WIDTH / 2 + 0.5; // keep pebbles off the path
 const BUSH_SPAWN_CHANCE = 1 / 300;
+const COIN_POINTS = 20;
+const COIN_SPIN_SPEED = 3.6; // radians per second
 
 for (let si = 0; si < floorSegments.length; si++) {
   const seg = floorSegments[si];
@@ -248,17 +251,22 @@ function resetObstacles(){
 
     if (i >= 1 && i < floorSegments.length - 1) {
       generateObstacles(seg);
+      generateCoins(seg);
     } else {
       if (seg.userData.obstacles) {
         seg.userData.obstacles.forEach(obj => seg.remove(obj));
       }
       seg.userData.obstacles = [];
+      if (seg.userData.coins) {
+        seg.userData.coins.forEach(coin => seg.remove(coin));
+      }
+      seg.userData.coins = [];
     }
   }
 }
 
 const gameState = createGameState({
-  scorePerSecond: 10,
+  scorePerSecond: 0,
   // restart button in state UI calls back here to reset world
   onRestart: resetGame
 });
@@ -290,13 +298,32 @@ function animate() {
   
     // detect if floor segment has wrapped around
     if (oldZPos > 0 && z < -SEGMENT_LENGTH) {
-      generateObstacles(segment)
+      generateObstacles(segment);
+      generateCoins(segment);
     }
   }
 
-  const nearbyObstacles = floorSegments
-    .filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH)
-    .flatMap(seg => seg.userData.obstacles || []);
+  const activeSegments = floorSegments.filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH);
+  const nearbyObstacles = activeSegments.flatMap(seg => seg.userData.obstacles || []);
+  const nearbyCoins = activeSegments
+    .flatMap(seg => seg.userData.coins || [])
+    .filter(coin => !coin.userData.collected);
+
+  const allCoins = floorSegments.flatMap(seg => seg.userData.coins || []);
+  for (let i = 0; i < allCoins.length; i++) {
+    const coin = allCoins[i];
+    if (coin.userData.collected) continue;
+    coin.rotation.y += COIN_SPIN_SPEED * dt;
+  }
+
+  const collectedCoins = collisionSystem.getOverlappingTargets(scene, dino.model, nearbyCoins);
+  for (let i = 0; i < collectedCoins.length; i++) {
+    const coin = collectedCoins[i];
+    if (coin.userData.collected) continue;
+    coin.userData.collected = true;
+    coin.visible = false;
+    gameState.addPoints(COIN_POINTS);
+  }
 
   const collided = collisionSystem.checkPlayerVsObstacles(scene, dino.model, nearbyObstacles);
   if (collided) {

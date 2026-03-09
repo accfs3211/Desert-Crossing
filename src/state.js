@@ -107,6 +107,17 @@ export function createGameState(options = {}) {
     updateScoreDisplay();
   }
 
+  function addPoints(points) {
+    if (gameOver) return;
+
+    score += points;
+    if (score > bestScore) {
+      bestScore = score;
+      localStorage.setItem('bestScore', String(Math.floor(bestScore)));
+    }
+    updateScoreDisplay();
+  }
+
   restartBtn.addEventListener('click', () => {
     // main game owns world/dino reset; this module handles UI + game phase state
     if (onRestart) onRestart();
@@ -118,6 +129,7 @@ export function createGameState(options = {}) {
     isGameOver: () => gameOver,
     getScore: () => score,
     tick,
+    addPoints,
     setGameOver,
     reset
   };
