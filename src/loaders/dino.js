@@ -29,6 +29,7 @@ export class Dino {
     constructor(options = {}) {
         this.model = null;
         this.offsetY = 0;
+        this.onJump = options.onJump;
 
         // variables for jumping 
         this.y = options.spawnY ?? DEFAULT_SPAWN_Y;
@@ -192,6 +193,7 @@ export class Dino {
                 this.isOnGround = false;
                 this.holdTime = 0;
                 this.airMoveUsed = false;
+                if (this.onJump) this.onJump();
             }
             this.spaceHeld = true;
         } else if (!e.repeat && (e.code === 'ArrowDown' || e.code === 'KeyS')) {
