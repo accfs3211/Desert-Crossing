@@ -48,21 +48,33 @@ export function generateObstacles(segment) {
     const spacing = SEGMENT_LENGTH / OBSTACLES_PER_SEGMENT;
 
     for (let i = 0; i < OBSTACLES_PER_SEGMENT; i++) {
-
         const type = randomObstacle();
-        const obstacle = type.create();
 
-        const jitter = spacing * 0.2;
-        const z = -SEGMENT_LENGTH + spacing * (i + 0.5) + (Math.random() - 0.5) * jitter;
+        let placed = false;
+        let attempts = 0;
 
-        const x = (Math.random() - 0.5) * PATH_WIDTH * 0.8;
+        while (!placed && attempts < 8) {
+            attempts++;
 
-        obstacle.position.set(x, 0, z);
+            const obstacle = type.create();
 
-        obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
+            const jitter = spacing * 0.2;
+            const z = -SEGMENT_LENGTH + spacing * (i + 0.5) + (Math.random() - 0.5) * jitter;
 
-        segment.add(obstacle);
-        segment.userData.obstacles.push(obstacle);
+            const laneIndex = Math.floor(Math.random() * LANE_X.length);
+            const x = LANE_X[laneIndex];
+
+            if (overlapsObstacle(x, z, segment.userData.obstacles)) {
+                continue;
+            }
+
+            obstacle.position.set(x, 0, z);
+            obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
+
+            segment.add(obstacle);
+            segment.userData.obstacles.push(obstacle);
+            placed = true;
+        }
     }
 }
 
