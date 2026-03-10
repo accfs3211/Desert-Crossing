@@ -69,6 +69,7 @@ export function generateObstacles(segment) {
             }
 
             obstacle.position.set(x, 0, z);
+            obstacle.rotation.y = Math.random() * Math.PI * 2;
             obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
 
             segment.add(obstacle);
