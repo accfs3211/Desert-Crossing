@@ -264,16 +264,19 @@ const DAY_THEME = {
 };
 
 const NIGHT_THEME = {
-  sky: 0x050b1f,
-  ground: 0x2a3550,
-  path: 0x3a4764,
-  pebbles: 0x58657d,
-  ambientColor: 0x3f4d71,
-  ambientIntensity: 0.44,
-  dirColor: 0x8fa0d8,
-  dirIntensity: 0.62,
-  fillColor: 0x4f5d86,
-  fillIntensity: 0.28
+  // Darker, slightly cooler sky for night.
+  sky: 0x0b172e,
+  // Keep terrain albedo the same; night look comes from lighting only.
+  ground: DAY_THEME.ground,
+  path: DAY_THEME.path,
+  pebbles: DAY_THEME.pebbles,
+  // Cooler, dimmer ambient and lights to simulate moonlight.
+  ambientColor: 0xbdcfff,
+  ambientIntensity: 0.35,
+  dirColor: 0xcfdcff,
+  dirIntensity: 0.45,
+  fillColor: 0x9fb6ff,
+  fillIntensity: 0.25
 };
 
 const themeColorA = new THREE.Color();
@@ -291,14 +294,13 @@ function lerpNumber(dayValue, nightValue, t) {
 
 function applyWorldThemeByBlend(t) {
   scene.background.copy(lerpHexColor(DAY_THEME.sky, NIGHT_THEME.sky, t));
-  groundMat.color.copy(lerpHexColor(DAY_THEME.ground, NIGHT_THEME.ground, t));
-  pathMat.color.copy(lerpHexColor(DAY_THEME.path, NIGHT_THEME.path, t));
-  pebbleMat.color.copy(lerpHexColor(DAY_THEME.pebbles, NIGHT_THEME.pebbles, t));
 
   ambient.color.copy(lerpHexColor(DAY_THEME.ambientColor, NIGHT_THEME.ambientColor, t));
   ambient.intensity = lerpNumber(DAY_THEME.ambientIntensity, NIGHT_THEME.ambientIntensity, t);
+
   dir.color.copy(lerpHexColor(DAY_THEME.dirColor, NIGHT_THEME.dirColor, t));
   dir.intensity = lerpNumber(DAY_THEME.dirIntensity, NIGHT_THEME.dirIntensity, t);
+
   fill.color.copy(lerpHexColor(DAY_THEME.fillColor, NIGHT_THEME.fillColor, t));
   fill.intensity = lerpNumber(DAY_THEME.fillIntensity, NIGHT_THEME.fillIntensity, t);
 }
