@@ -19,12 +19,26 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
 // lights 
 const ambient = new THREE.AmbientLight(0xf7c592, 0.8);
 scene.add(ambient);
-const dir = new THREE.DirectionalLight(0xffffff, 0.95);
-dir.position.set(0, 20, 10);
+const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+
+dir.position.set(22, 36, 14);
+dir.target.position.set(0, 0, -8);
+dir.castShadow = true;
+dir.shadow.mapSize.set(1024, 1024);
+dir.shadow.camera.near = 5;
+dir.shadow.camera.far = 80;
+dir.shadow.camera.left = -35;
+dir.shadow.camera.right = 35;
+dir.shadow.camera.top = 35;
+dir.shadow.camera.bottom = -35;
 scene.add(dir);
+scene.add(dir.target);
 const fill = new THREE.DirectionalLight(0xaaccff, 0.35);
 fill.position.set(5, 8, -5);
 scene.add(fill);
