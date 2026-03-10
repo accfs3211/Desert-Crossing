@@ -272,11 +272,11 @@ const NIGHT_THEME = {
   pebbles: DAY_THEME.pebbles,
   // Cooler, dimmer ambient and lights to simulate moonlight.
   ambientColor: 0xbdcfff,
-  ambientIntensity: 0.35,
+  ambientIntensity: 0.1,
   dirColor: 0xcfdcff,
-  dirIntensity: 0.45,
+  dirIntensity: 0.2,
   fillColor: 0x9fb6ff,
-  fillIntensity: 0.25
+  fillIntensity: 0.12
 };
 
 const themeColorA = new THREE.Color();

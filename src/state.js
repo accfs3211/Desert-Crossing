@@ -15,7 +15,7 @@ export function createGameState(options = {}) {
     left: '14px',
     fontFamily: 'monospace',
     fontSize: '24px',
-    color: '#1f2937',
+    color: '#ffffff',
     zIndex: '999',
     userSelect: 'none'
   });
@@ -28,7 +28,7 @@ export function createGameState(options = {}) {
     left: '14px',
     fontFamily: 'monospace',
     fontSize: '18px',
-    color: '#1f2937',
+    color: '#ffffff',
     zIndex: '999',
     userSelect: 'none'
   });
@@ -41,7 +41,7 @@ export function createGameState(options = {}) {
     left: '14px',
     fontFamily: 'monospace',
     fontSize: '18px',
-    color: '#1f2937',
+    color: '#ffffff',
     zIndex: '999',
     userSelect: 'none'
   });
