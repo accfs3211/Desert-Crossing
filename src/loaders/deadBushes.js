@@ -5,12 +5,39 @@ let deadBushModels = [];
 const UPRIGHT_FIX_X = -Math.PI / 2;
 
 function makeMaterialDull(material) {
-    if (!material) return;
+    if (!material) return material;
+
+ 
+    if (material.isMeshBasicMaterial) {
+        const basic = material;
+        material = new THREE.MeshStandardMaterial({
+            map: basic.map || null,
+            color: basic.color ? basic.color.clone() : new THREE.Color(0xffffff),
+            transparent: basic.transparent,
+            opacity: basic.opacity,
+            alphaTest: basic.alphaTest,
+            side: basic.side
+        });
+    }
+
+    if ('emissive' in material && material.emissive?.setHex) {
+        material.emissive.setHex(0x000000);
+    }
+    if ('emissiveIntensity' in material) {
+        material.emissiveIntensity = 0;
+    }
+
+    if (material.color && material.color.multiplyScalar) {
+        // Make shrubs overall darker so they don't pop at night.
+        material.color.multiplyScalar(0.6);
+    }
 
     if ('roughness' in material) material.roughness = Math.max(material.roughness ?? 0, 0.95);
     if ('metalness' in material) material.metalness = 0;
     if ('shininess' in material) material.shininess = 2;
     if ('specular' in material && material.specular?.setScalar) material.specular.setScalar(0.05);
+
+    return material;
 }
 
 function hasMeshDescendant(node) {
@@ -55,13 +82,14 @@ export function loadDeadBushObj(callback) {
                         child.castShadow = true;
                         child.receiveShadow = true;
                         if (Array.isArray(child.material)) {
-                            child.material.forEach((mat) => {
-                                makeMaterialDull(mat);
-                                mat.needsUpdate = true;
+                            child.material = child.material.map((mat) => {
+                                const updated = makeMaterialDull(mat);
+                                if (updated) updated.needsUpdate = true;
+                                return updated;
                             });
                         } else if (child.material) {
-                            makeMaterialDull(child.material);
-                            child.material.needsUpdate = true;
+                            child.material = makeMaterialDull(child.material);
+                            if (child.material) child.material.needsUpdate = true;
                         }
                     }
                 });

@@ -5,7 +5,8 @@ import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/dea
 import { Dino } from './loaders/dino.js'
 import { createGameState } from './state.js';
 import { createCollisionSystem } from './collision.js';
-import { loadAllObstacles, generateObstacles } from './obstacles.js';
+import { loadAllObstacles, generateObstacles, generateCoins } from './obstacles.js';
+import { createAudioSystem } from './audio.js';
 
 // scene, camera, renderer
 const scene = new THREE.Scene();
@@ -20,19 +21,39 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 document.body.appendChild(renderer.domElement);
 
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
 // lights 
 const ambient = new THREE.AmbientLight(0xf7c592, 0.8);
 scene.add(ambient);
-const dir = new THREE.DirectionalLight(0xffffff, 0.95);
-dir.position.set(0, 20, 10);
+const dir = new THREE.DirectionalLight(0xffffff, 1.0);
+
+dir.position.set(22, 36, 14);
+dir.target.position.set(0, 0, -8);
+dir.castShadow = true;
+dir.shadow.mapSize.set(1024, 1024);
+dir.shadow.camera.near = 5;
+dir.shadow.camera.far = 80;
+dir.shadow.camera.left = -35;
+dir.shadow.camera.right = 35;
+dir.shadow.camera.top = 35;
+dir.shadow.camera.bottom = -35;
 scene.add(dir);
+scene.add(dir.target);
 const fill = new THREE.DirectionalLight(0xaaccff, 0.35);
 fill.position.set(5, 8, -5);
 scene.add(fill);
 
 // create dinosaur
 const DINO_SPAWN_Y = 4.5;
-const dino = new Dino({ spawnY: DINO_SPAWN_Y });
+const audioSystem = createAudioSystem();
+audioSystem.enableAutoplayUnlock();
+
+const dino = new Dino({
+  spawnY: DINO_SPAWN_Y,
+  onJump: () => audioSystem.playJump()
+});
 dino.load(scene);
 
 // moving world 
@@ -40,7 +61,7 @@ const SEGMENT_LENGTH = 24; // length  of one scrolling terrain segment in the z 
 const GROUND_WIDTH = 500; // total terrain width across x
 const PATH_WIDTH = 8; // width of the central playable path
 const NUM_SEGMENTS = 16; // number of terrain segments kept in rotation
-const FLOOR_SPEED = 6; // how fast segments move toward the camera
+const BASE_FLOOR_SPEED = 7; // base speed segments move toward the camera
 const WRAP_THRESHOLD = SEGMENT_LENGTH + 15; // z position where a segment is recycled to the back
 const TERRAIN_FLAT_HALF = PATH_WIDTH / 2 + 0.8; // Half-width of center area flattened for gameplay
 const TERRAIN_FLAT_BLEND = 2.4; // Blend distance from flat path to full dune height
@@ -104,6 +125,7 @@ await loadAllObstacles();
 floorSegments.forEach((seg, index) => {
   if (index >= 1 && index < floorSegments.length - 1) {
     generateObstacles(seg);
+    generateCoins(seg);
   }
 });
 
@@ -173,6 +195,12 @@ const pebbleMat = new THREE.MeshPhongMaterial({ color: 0xa09080, shininess: 15 }
 const SCATTER_HALF = 40; // scatter pebbles +-40 units from center
 const PATH_HALF = PATH_WIDTH / 2 + 0.5; // keep pebbles off the path
 const BUSH_SPAWN_CHANCE = 1 / 300;
+const COIN_POINTS = 20;
+const COIN_SPIN_SPEED = 3.6; // radians per second
+const DAY_NIGHT_INTERVAL = 20; // seconds
+const THEME_TRANSITION_DURATION = 2.5; // seconds
+const SPEED_UP_INTERVAL_SECONDS = 40; // every full day+night cycle
+const SPEED_UP_MULTIPLIER = 1.5;
 
 for (let si = 0; si < floorSegments.length; si++) {
   const seg = floorSegments[si];
@@ -209,11 +237,75 @@ for (let si = 0; si < floorSegments.length; si++) {
 // animation
 const clock = new THREE.Clock();
 let scrollOffset = 0;
+let dayNightTimer = 0;
+let targetNight = false;
+let themeBlend = 0; // 0 day, 1 night
+let survivalTime = 0;
+let dayCount = 0;
+let nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
+let currentFloorSpeed = BASE_FLOOR_SPEED;
 const TOTAL_LENGTH = NUM_SEGMENTS * SEGMENT_LENGTH;
 const collisionSystem = createCollisionSystem({
   // tightened player hitbox (to reduce false positives)
   playerShrink: new THREE.Vector3(0.2, 0.15, 0.2)
 });
+
+const DAY_THEME = {
+  sky: 0x87ceeb,
+  ground: 0xd4b483,
+  path: 0xc4a46c,
+  pebbles: 0xa09080,
+  ambientColor: 0xf7c592,
+  ambientIntensity: 0.8,
+  dirColor: 0xffffff,
+  dirIntensity: 0.95,
+  fillColor: 0xaaccff,
+  fillIntensity: 0.35
+};
+
+const NIGHT_THEME = {
+  // Darker, slightly cooler sky for night.
+  sky: 0x0b172e,
+  // Keep terrain albedo the same; night look comes from lighting only.
+  ground: DAY_THEME.ground,
+  path: DAY_THEME.path,
+  pebbles: DAY_THEME.pebbles,
+  // Cooler, dimmer ambient and lights to simulate moonlight.
+  ambientColor: 0xbdcfff,
+  ambientIntensity: 0.1,
+  dirColor: 0xcfdcff,
+  dirIntensity: 0.2,
+  fillColor: 0x9fb6ff,
+  fillIntensity: 0.12
+};
+
+const themeColorA = new THREE.Color();
+const themeColorB = new THREE.Color();
+
+function lerpHexColor(dayHex, nightHex, t) {
+  themeColorA.setHex(dayHex);
+  themeColorB.setHex(nightHex);
+  return themeColorA.lerp(themeColorB, t);
+}
+
+function lerpNumber(dayValue, nightValue, t) {
+  return dayValue + (nightValue - dayValue) * t;
+}
+
+function applyWorldThemeByBlend(t) {
+  scene.background.copy(lerpHexColor(DAY_THEME.sky, NIGHT_THEME.sky, t));
+
+  ambient.color.copy(lerpHexColor(DAY_THEME.ambientColor, NIGHT_THEME.ambientColor, t));
+  ambient.intensity = lerpNumber(DAY_THEME.ambientIntensity, NIGHT_THEME.ambientIntensity, t);
+
+  dir.color.copy(lerpHexColor(DAY_THEME.dirColor, NIGHT_THEME.dirColor, t));
+  dir.intensity = lerpNumber(DAY_THEME.dirIntensity, NIGHT_THEME.dirIntensity, t);
+
+  fill.color.copy(lerpHexColor(DAY_THEME.fillColor, NIGHT_THEME.fillColor, t));
+  fill.intensity = lerpNumber(DAY_THEME.fillIntensity, NIGHT_THEME.fillIntensity, t);
+}
+
+applyWorldThemeByBlend(0);
 
 function resetDinoState() {
   dino.y = DINO_SPAWN_Y;
@@ -234,6 +326,15 @@ function resetDinoState() {
 
 function resetGame() {
   scrollOffset = 0;
+  dayNightTimer = 0;
+  targetNight = false;
+  themeBlend = 0;
+  survivalTime = 0;
+  dayCount = 0;
+  nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
+  currentFloorSpeed = BASE_FLOOR_SPEED;
+  audioSystem.resetForRestart();
+  applyWorldThemeByBlend(0);
   resetDinoState();
   resetObstacles();
   for (let i = 0; i < NUM_SEGMENTS; i++) {
@@ -248,17 +349,22 @@ function resetObstacles(){
 
     if (i >= 1 && i < floorSegments.length - 1) {
       generateObstacles(seg);
+      generateCoins(seg);
     } else {
       if (seg.userData.obstacles) {
         seg.userData.obstacles.forEach(obj => seg.remove(obj));
       }
       seg.userData.obstacles = [];
+      if (seg.userData.coins) {
+        seg.userData.coins.forEach(coin => seg.remove(coin));
+      }
+      seg.userData.coins = [];
     }
   }
 }
 
 const gameState = createGameState({
-  scorePerSecond: 10,
+  scorePerSecond: 0,
   // restart button in state UI calls back here to reset world
   onRestart: resetGame
 });
@@ -270,7 +376,25 @@ function animate() {
   }
 
   const dt = clock.getDelta();
-  scrollOffset += FLOOR_SPEED * dt;
+  survivalTime += dt;
+  while (survivalTime >= nextSpeedUpAt) {
+    dayCount += 1;
+    nextSpeedUpAt += SPEED_UP_INTERVAL_SECONDS;
+    currentFloorSpeed *= SPEED_UP_MULTIPLIER;
+    audioSystem.setMusicRate(1 + dayCount * 0.08);
+    gameState.setDayCount(dayCount);
+    const dayWord = dayCount === 1 ? 'day' : 'days';
+    gameState.showNotice(`You survived ${dayCount} ${dayWord}! Speed Up!`);
+  }
+  scrollOffset += currentFloorSpeed * dt;
+  dayNightTimer += dt;
+  while (dayNightTimer >= DAY_NIGHT_INTERVAL) {
+    dayNightTimer -= DAY_NIGHT_INTERVAL;
+    targetNight = !targetNight;
+  }
+  const direction = targetNight ? 1 : -1;
+  themeBlend = Math.max(0, Math.min(1, themeBlend + (direction * dt) / THEME_TRANSITION_DURATION));
+  applyWorldThemeByBlend(themeBlend);
   gameState.tick(dt);
 
   // handle dino jump
@@ -290,16 +414,37 @@ function animate() {
   
     // detect if floor segment has wrapped around
     if (oldZPos > 0 && z < -SEGMENT_LENGTH) {
-      generateObstacles(segment)
+      generateObstacles(segment);
+      generateCoins(segment);
     }
   }
 
-  const nearbyObstacles = floorSegments
-    .filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH)
-    .flatMap(seg => seg.userData.obstacles || []);
+  const activeSegments = floorSegments.filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH);
+  const nearbyObstacles = activeSegments.flatMap(seg => seg.userData.obstacles || []);
+  const nearbyCoins = activeSegments
+    .flatMap(seg => seg.userData.coins || [])
+    .filter(coin => !coin.userData.collected);
+
+  const allCoins = floorSegments.flatMap(seg => seg.userData.coins || []);
+  for (let i = 0; i < allCoins.length; i++) {
+    const coin = allCoins[i];
+    if (coin.userData.collected) continue;
+    coin.rotation.y += COIN_SPIN_SPEED * dt;
+  }
+
+  const collectedCoins = collisionSystem.getOverlappingTargets(scene, dino.model, nearbyCoins);
+  for (let i = 0; i < collectedCoins.length; i++) {
+    const coin = collectedCoins[i];
+    if (coin.userData.collected) continue;
+    coin.userData.collected = true;
+    coin.visible = false;
+    audioSystem.playCoin();
+    gameState.addPoints(COIN_POINTS);
+  }
 
   const collided = collisionSystem.checkPlayerVsObstacles(scene, dino.model, nearbyObstacles);
   if (collided) {
+    audioSystem.playGameOver();
     gameState.setGameOver();
   }
   renderer.render(scene, camera);
