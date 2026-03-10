@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { loadCactusObj, createCactus } from "./loaders/cactus1";
 import { loadRocksObj, createRocks } from './loaders/rocks';
+import { loadRocks2Obj, createRocks2 } from './loaders/rocks2';
+import { loadRocks3Obj, createRocks3 } from './loaders/rocks3';
 
 // constants from main
 const PATH_WIDTH = 8;
 const SEGMENT_LENGTH = 24;
+
 
 const obstacleTypes = [
     {
@@ -14,10 +17,22 @@ const obstacleTypes = [
         create: createCactus
     },
     {
-        name: 'rocks',
-        spawnChance: 0.5,
+        name: 'rocks1',
+        spawnChance: 0.1,
         load: loadRocksObj,
         create: createRocks
+    },
+    {
+        name: 'rocks2',
+        spawnChance: 0.2,
+        load: loadRocks2Obj,
+        create: createRocks2
+    },
+    {
+        name: 'rocks3',
+        spawnChance: 0.2,
+        load: loadRocks3Obj,
+        create: createRocks3
     }
 ]
 
@@ -36,7 +51,10 @@ export function generateObstacles(segment) {
 
     segment.userData.obstacles = [];
 
-    const OBSTACLES_PER_SEGMENT = 2;
+    const OBSTACLE_MIN = 2;
+    const OBSTACLE_MAX = 3;
+
+    const OBSTACLES_PER_SEGMENT = Math.floor(Math.random() * (OBSTACLE_MAX - OBSTACLE_MIN + 1)) + OBSTACLE_MIN;
     const spacing = SEGMENT_LENGTH / OBSTACLES_PER_SEGMENT;
 
     for (let i = 0; i < OBSTACLES_PER_SEGMENT; i++) {
@@ -44,7 +62,7 @@ export function generateObstacles(segment) {
         const type = randomObstacle();
         const obstacle = type.create();
 
-        const jitter = spacing * 0.2;
+        const jitter = spacing * 0.6;
         const z = -SEGMENT_LENGTH + spacing * (i + 0.5) + (Math.random() - 0.5) * jitter;
 
         const x = (Math.random() - 0.5) * PATH_WIDTH * 0.8;
