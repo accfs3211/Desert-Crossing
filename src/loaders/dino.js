@@ -47,6 +47,12 @@ export class Dino {
         this.duckScaleRatio = 1;
         this.duckScaleVelocity = 0;
 
+        // variables for walking
+        this.walkFrames = [];
+        this.currentFrame = 0;
+        this.walkTimer = 0;
+        this.walkFrameDuration = 0.12;
+
         // Lane movement config/state
         this.laneCount = options.laneCount ?? DEFAULT_LANE_COUNT;
         this.laneSpacing = options.laneSpacing ?? DEFAULT_LANE_SPACING;
@@ -66,28 +72,52 @@ export class Dino {
 
     load(scene, callback) {
         const objLoader = new OBJLoader();
-        objLoader.load('assets/dino.obj', (model) => {
-            this.model = model;
-            this.model.scale.set(0.3, 0.3, 0.3);
-            this.baseScale.copy(this.model.scale);
-            this.duckScaleRatio = 1;
-            this.duckScaleVelocity = 0;
-            this.model.rotation.y = Math.PI / 2;
-
-            this.model.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
-                    child.material.color.set(0x9c432a);
-                    child.material.needsUpdate = true;
-                }
+    
+        const files = ['assets/dino.obj', 'assets/dino2.obj'];
+    
+        Promise.all(files.map(file => {
+            return new Promise(resolve => {
+                objLoader.load(file, (model) => {
+    
+                    model.scale.set(0.55, 0.55, 0.55);
+                    //model.position.set(x, 1, z);
+                    model.rotation.y = Math.PI / 2;
+    
+                    model.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                            child.material.color.set(0x9c432a);
+                            child.material.needsUpdate = true;
+                        }
+                    });
+    
+                    resolve(model);
+                });
             });
+        })).then(models => {
+    
+            this.model = new THREE.Group();
+    
+            models.forEach((m, i) => {
 
-            const dinoBounds = new THREE.Box3().setFromObject(this.model);
-            this.offsetY = (dinoBounds.max.y - dinoBounds.min.y) / 2;
+                const box = new THREE.Box3().setFromObject(m);
+
+                // shift mesh so bottom touches y = 0
+                m.position.y -= box.min.y;
+                m.visible = (i === 0);
+                this.walkFrames.push(m);
+                this.model.add(m);
+            });
+    
+            this.baseScale.copy(this.walkFrames[0].scale);
+    
+            const bounds = new THREE.Box3().setFromObject(this.walkFrames[0]);
+            this.offsetY = -bounds.min.y;
             this.model.position.y = this.y + this.offsetY;
-
+    
             scene.add(this.model);
+    
             if (callback) callback();
         });
     }
@@ -95,6 +125,20 @@ export class Dino {
     update(dt) {
         if (!this.model) return;
 
+        if (this.isOnGround) {
+            this.walkTimer += dt;
+
+            if (this.walkTimer > this.walkFrameDuration) {
+                this.walkTimer = 0;
+
+                this.walkFrames[this.currentFrame].visible = false;
+
+                this.currentFrame = (this.currentFrame + 1) % this.walkFrames.length;
+
+                this.walkFrames[this.currentFrame].visible = true;
+            }
+        }
+        
         this.laneCooldownRemaining = Math.max(0, this.laneCooldownRemaining - dt);
         this.duckCooldownRemaining = Math.max(0, this.duckCooldownRemaining - dt);
 
