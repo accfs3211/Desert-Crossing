@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { loadCactusObj, createCactus } from "./loaders/cactus1";
+import { loadCactus2Obj, createCactus2 } from './loaders/catus2';
 import { loadRocksObj, createRocks } from './loaders/rocks';
 import { loadRocks2Obj, createRocks2 } from './loaders/rocks2';
 import { loadRocks3Obj, createRocks3 } from './loaders/rocks3';
 import { loadCoinObj, createCoin } from './loaders/coin';
+import { loadTumbleweedObj, createTumbleweed } from './loaders/tumbleweed';
+import { loadBushObj, createBush } from './loaders/bush';
 
 // constants from main
 const PATH_WIDTH = 8;
@@ -17,27 +20,45 @@ const LANE_X = [-PATH_WIDTH / 3, 0, PATH_WIDTH / 3];
 const obstacleTypes = [
     {
         name: 'cactus',
-        spawnChance: 0.5,
+        spawnChance: 0.30,
         load: loadCactusObj,
         create: createCactus
     },
     {
         name: 'rocks1',
-        spawnChance: 0.1,
+        spawnChance: 0.08,
         load: loadRocksObj,
         create: createRocks
     },
     {
         name: 'rocks2',
-        spawnChance: 0.2,
+        spawnChance: 0.1,
         load: loadRocks2Obj,
         create: createRocks2
     },
     {
         name: 'rocks3',
-        spawnChance: 0.2,
+        spawnChance: 0.1,
         load: loadRocks3Obj,
         create: createRocks3
+    },
+    {
+        name: 'tumbleweed',
+        spawnChance: 0.2,
+        load: loadTumbleweedObj,
+        create: createTumbleweed
+    },
+    {
+        name: 'bush',
+        spawnChance: 0.15,
+        load: loadBushObj,
+        create: createBush
+    },
+    {
+        name: 'cactus2',
+        spawnChance: 0.2,
+        load: loadCactus2Obj,
+        create: createCactus2
     }
 ]
 
@@ -68,8 +89,6 @@ export function generateObstacles(segment) {
     for (let i = 0; i < OBSTACLES_PER_SEGMENT; i++) {
         const type = randomObstacle();
 
-        const jitter = spacing * 0.6;
-        const z = -SEGMENT_LENGTH + spacing * (i + 0.5) + (Math.random() - 0.5) * jitter;
         let placed = false;
         let attempts = 0;
 
@@ -77,6 +96,7 @@ export function generateObstacles(segment) {
             attempts++;
 
             const obstacle = type.create();
+            obstacle.userData.type = type.name;
 
             const jitter = spacing * 0.2;
             const z = -SEGMENT_LENGTH + spacing * (i + 0.5) + (Math.random() - 0.5) * jitter;
@@ -88,13 +108,40 @@ export function generateObstacles(segment) {
                 continue;
             }
 
+            if (type.name != "cactus2"){
+                obstacle.rotation.y = Math.random() * Math.PI * 2;
+            } else {
+                const isFlipped = Math.random() > 0.5;
+                obstacle.rotation.y = isFlipped ? Math.PI : 0;
+            }
+            
             obstacle.position.set(x, 0, z);
-            obstacle.rotation.y = Math.random() * Math.PI * 2;
+            if (type.name == "tumbleweed") {
+                obstacle.position.set(x, 1, z);
+                obstacle.userData.timeOffset = Math.random() * Math.PI * 2;
+            }
+            
             obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
 
             segment.add(obstacle);
             segment.userData.obstacles.push(obstacle);
             placed = true;
+        }
+    }
+}
+
+export function updateObstacles(floorSegments, time) {
+
+    for (const seg of floorSegments) {
+        const obstacles = seg.userData.obstacles || [];
+        for (const obstacle of obstacles) {
+            if (obstacle.userData.type === "tumbleweed") {
+                const offset = obstacle.userData.timeOffset;
+                const amplitude = 5.0;
+                const speed = 1.0;     
+                obstacle.position.x = Math.sin((time + offset) * speed) * amplitude;                
+                obstacle.rotation.z += 0.08;
+            }
         }
     }
 }

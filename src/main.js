@@ -1,11 +1,10 @@
 import * as THREE from 'three';
 import { createWavyGroundGeometry, sampleTerrainHeight } from './geometries.js';
-import { loadCactusObj, createCactus } from './loaders/cactus1.js';
 import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/deadBushes.js';
 import { Dino } from './loaders/dino.js'
 import { createGameState } from './state.js';
 import { createCollisionSystem } from './collision.js';
-import { loadAllObstacles, generateObstacles, generateCoins } from './obstacles.js';
+import { loadAllObstacles, generateObstacles, updateObstacles, generateCoins } from './obstacles.js';
 import { createAudioSystem } from './audio.js';
 
 // scene, camera, renderer
@@ -376,6 +375,8 @@ function animate() {
   }
 
   const dt = clock.getDelta();
+  const totalTime = clock.getElapsedTime();
+
   survivalTime += dt;
   while (survivalTime >= nextSpeedUpAt) {
     dayCount += 1;
@@ -418,6 +419,8 @@ function animate() {
       generateCoins(segment);
     }
   }
+
+  updateObstacles(floorSegments, totalTime);
 
   const activeSegments = floorSegments.filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH);
   const nearbyObstacles = activeSegments.flatMap(seg => seg.userData.obstacles || []);

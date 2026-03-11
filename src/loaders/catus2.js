@@ -3,15 +3,16 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 
 let cactusObj = null;
 
-export function loadCactusObj() {
+export function loadCactus2Obj() {
     return new Promise((resolve) => {
         const objLoader = new OBJLoader();
-        objLoader.load('assets/cactus1.obj', (model) => {
+        objLoader.load('assets/cactus2.obj', (model) => {
 
-            model.scale.set(0.5, 0.6, 0.5);
+            model.scale.set(1, 1, 1);
+            model.rotation.y = Math.PI/2;
             model.traverse((child) => {
             if (child.isMesh) {
-                child.material = new THREE.MeshPhongMaterial({ color: 0x228b22, shininess: 20 });
+                child.material = new THREE.MeshPhongMaterial({ color: 0x50b033, side: THREE.DoubleSide });
                 child.castShadow = true;
                 child.receiveShadow = true;
             }
@@ -29,6 +30,6 @@ export function loadCactusObj() {
     
 }
 
-export function createCactus() {
+export function createCactus2() {
     return cactusObj.clone();
 }
