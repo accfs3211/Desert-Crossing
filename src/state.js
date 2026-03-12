@@ -3,6 +3,7 @@ export function createGameState(options = {}) {
   const onRestart = options.onRestart;
 
   let gameOver = false;
+  let paused = false;
   let score = 0;
   let bestScore = Number(localStorage.getItem('bestScore') || 0);
   let dayCount = 0;
@@ -72,6 +73,27 @@ export function createGameState(options = {}) {
   });
   document.body.appendChild(noticeElement);
 
+  const pausedElement = document.createElement('div');
+  pausedElement.textContent = 'Paused\nPress Esc to resume';
+  Object.assign(pausedElement.style, {
+    position: 'fixed',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    textAlign: 'center',
+    whiteSpace: 'pre-line',
+    fontFamily: 'monospace',
+    fontSize: '32px',
+    color: '#111827',
+    background: 'rgba(249, 250, 251, 0.95)',
+    padding: '14px 20px',
+    borderRadius: '12px',
+    boxShadow: '0 8px 24px rgba(0,0,0,0.25)',
+    display: 'none',
+    zIndex: '998'
+  });
+  document.body.appendChild(pausedElement);
+
   const gameOverElement = document.createElement('div');
   const gameOverTitleElement = document.createElement('div');
   gameOverTitleElement.textContent = 'Game Over';
@@ -127,7 +149,7 @@ export function createGameState(options = {}) {
   }
 
   function tick(dt) {
-    if (gameOver) return;
+    if (gameOver || paused) return;
 
     // time-based endless-runner scoring
     score += dt * scorePerSecond;
@@ -156,12 +178,19 @@ export function createGameState(options = {}) {
 
   function reset() {
     gameOver = false;
+    paused = false;
     score = 0;
     dayCount = 0;
     noticeTimeRemaining = 0;
     gameOverElement.style.display = 'none';
     noticeElement.style.display = 'none';
+    pausedElement.style.display = 'none';
     updateScoreDisplay();
+  }
+
+  function setPaused(isPaused) {
+    paused = !!isPaused;
+    pausedElement.style.display = paused ? 'block' : 'none';
   }
 
   function addPoints(points) {
@@ -195,12 +224,14 @@ export function createGameState(options = {}) {
 
   return {
     isGameOver: () => gameOver,
+    isPaused: () => paused,
     getScore: () => score,
     tick,
     addPoints,
     setDayCount,
     showNotice,
     setGameOver,
+    setPaused,
     reset
   };
 }

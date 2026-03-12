@@ -239,6 +239,7 @@ let dayCount = 0;
 let nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
 let currentFloorSpeed = BASE_FLOOR_SPEED;
 const TOTAL_LENGTH = NUM_SEGMENTS * SEGMENT_LENGTH;
+let isPaused = false;
 const collisionSystem = createCollisionSystem({
   // tightened player hitbox (to reduce false positives)
   playerShrink: new THREE.Vector3(0.2, 0.15, 0.2)
@@ -327,6 +328,9 @@ function resetGame() {
   dayCount = 0;
   nextSpeedUpAt = SPEED_UP_INTERVAL_SECONDS;
   currentFloorSpeed = BASE_FLOOR_SPEED;
+  isPaused = false;
+  clock.start();
+  clock.getDelta();
   audioSystem.resetForRestart();
   applyWorldThemeByBlend(0);
   resetDinoState();
@@ -364,8 +368,26 @@ const gameState = createGameState({
   onRestart: resetGame
 });
 
+window.addEventListener('keydown', (e) => {
+  if (e.code === 'Escape') {
+    e.preventDefault();
+    if (gameState.isGameOver()) return;
+    isPaused = !isPaused;
+    if (isPaused) {
+      clock.stop();
+    } else {
+      clock.start();
+      // flush any large accumulated delta so the next frame step is small
+      clock.getDelta();
+    }
+    if (gameState.setPaused) {
+      gameState.setPaused(isPaused);
+    }
+  }
+});
+
 function animate() {
-  if (gameState.isGameOver()) {
+  if (gameState.isGameOver() || isPaused) {
     renderer.render(scene, camera);
     return;
   }
