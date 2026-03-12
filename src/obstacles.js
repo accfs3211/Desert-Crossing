@@ -121,7 +121,11 @@ export function generateObstacles(segment) {
                 obstacle.userData.timeOffset = Math.random() * Math.PI * 2;
             }
             
-            obstacle.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
+            obstacle.userData.hitboxShrink = new THREE.Vector3(
+                obstacle.scale.x * 0.3,
+                obstacle.scale.y * 0.3,
+                obstacle.scale.z * 0.3
+            );
 
             segment.add(obstacle);
             segment.userData.obstacles.push(obstacle);

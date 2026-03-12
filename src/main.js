@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { createWavyGroundGeometry, sampleTerrainHeight } from './geometries.js';
 import { loadDeadBushObj, createDeadBush, getDeadBushCount } from './loaders/deadBushes.js';
 import { Dino } from './loaders/dino.js'
+import { Pterodactyl } from './loaders/pterodactyl.js';
 import { createGameState } from './state.js';
 import { createCollisionSystem } from './collision.js';
 import { loadAllObstacles, generateObstacles, updateObstacles, generateCoins } from './obstacles.js';
@@ -55,6 +56,12 @@ const dino = new Dino({
 });
 dino.load(scene);
 
+// create pterodactyl
+const ptero = new Pterodactyl({y: 2, speed: 8});
+ptero.load(() => {
+    scene.add(ptero.model);
+});
+
 // moving world 
 const SEGMENT_LENGTH = 24; // length  of one scrolling terrain segment in the z direction 
 const GROUND_WIDTH = 500; // total terrain width across x
@@ -105,18 +112,6 @@ for (let i = 0; i < NUM_SEGMENTS; i++) {
   scene.add(seg);
   floorSegments.push(seg);
 }
-
-// add cactus to the floor segments
-// loadCactusObj(() => {
-//   for (let i = 0; i < floorSegments.length; i++) {
-//     const cactus = createCactus();
-//     cactus.position.set(0, 0, -SEGMENT_LENGTH / 2); // position fixed for now
-//     cactus.userData.obstacleType = 'cactus';
-//     cactus.userData.hitboxShrink = new THREE.Vector3(0.12, 0.06, 0.12);
-//     floorSegments[i].add(cactus);
-//     obstacles.push(cactus);
-//   }
-// });
 
 // load obstacles in from obstacles.js
 await loadAllObstacles();
@@ -336,6 +331,7 @@ function resetGame() {
   applyWorldThemeByBlend(0);
   resetDinoState();
   resetObstacles();
+  ptero.reset();
   for (let i = 0; i < NUM_SEGMENTS; i++) {
     floorSegments[i].position.z = -i * SEGMENT_LENGTH;
   }
@@ -398,8 +394,11 @@ function animate() {
   applyWorldThemeByBlend(themeBlend);
   gameState.tick(dt);
 
-  // handle dino jump
+  // handle dino movements
   dino.update(dt);
+
+  // handle pterodactyl movements
+  ptero.update(dt);
   
   // scroll floor segments 
   for (let i = 0; i < NUM_SEGMENTS; i++) {
@@ -424,6 +423,7 @@ function animate() {
 
   const activeSegments = floorSegments.filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH);
   const nearbyObstacles = activeSegments.flatMap(seg => seg.userData.obstacles || []);
+  nearbyObstacles.push(ptero.model);
   const nearbyCoins = activeSegments
     .flatMap(seg => seg.userData.coins || [])
     .filter(coin => !coin.userData.collected);

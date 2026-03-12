@@ -19,7 +19,7 @@ const DEFAULT_LANE_SWITCH_COOLDOWN = 0.1;
 const DEFAULT_SPAWN_Y = GROUND_Y;
 
 // constants for ducking 
-const DUCK_DURATION = 0.3;
+const DUCK_DURATION = 2;
 const DUCK_COOLDOWN = 0.35;
 const DUCK_Y_SCALE_MULTIPLIER = 0.5;
 const DUCK_SPRING_STIFFNESS = 45;
