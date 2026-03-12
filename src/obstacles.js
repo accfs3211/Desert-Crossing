@@ -118,7 +118,10 @@ export function generateObstacles(segment) {
             obstacle.position.set(x, 0, z);
             if (type.name == "tumbleweed") {
                 obstacle.position.set(x, 1, z);
+             
+                obstacle.userData.baseLaneX = x;
                 obstacle.userData.timeOffset = Math.random() * Math.PI * 2;
+                obstacle.userData.tumbleTime = 0;
             }
             
             obstacle.userData.hitboxShrink = new THREE.Vector3(
@@ -134,16 +137,18 @@ export function generateObstacles(segment) {
     }
 }
 
-export function updateObstacles(floorSegments, time) {
-
+export function updateObstacles(floorSegments, time, dt) {
     for (const seg of floorSegments) {
         const obstacles = seg.userData.obstacles || [];
         for (const obstacle of obstacles) {
             if (obstacle.userData.type === "tumbleweed") {
-                const offset = obstacle.userData.timeOffset;
+                const offset = obstacle.userData.timeOffset || 0;
                 const amplitude = 5.0;
-                const speed = 1.0;     
-                obstacle.position.x = Math.sin((time + offset) * speed) * amplitude;                
+                const speed = 1.0;
+                const baseX = obstacle.userData.baseLaneX ?? obstacle.position.x;
+                obstacle.userData.tumbleTime = (obstacle.userData.tumbleTime || 0) + (dt || 0);
+                const localTime = obstacle.userData.tumbleTime + offset;
+                obstacle.position.x = baseX + Math.sin(localTime * speed) * amplitude;
                 obstacle.rotation.z += 0.08;
             }
         }

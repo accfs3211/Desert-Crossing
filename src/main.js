@@ -313,9 +313,26 @@ function resetDinoState() {
   dino.currentLane = 1;
   dino.targetLane = 1;
   dino.laneCooldownRemaining = 0;
+  dino.isDucking = false;
+  dino.duckTimer = 0;
+  dino.duckCooldownRemaining = 0;
+  dino.duckScaleRatio = 1;
+  dino.duckScaleVelocity = 0;
+  if (dino.model && dino.baseScale) {
+    dino.model.scale.set(dino.baseScale.x, dino.baseScale.y, dino.baseScale.z);
+  }
+  // reset walk animation state
+  dino.walkTimer = 0;
+  dino.currentFrame = 0;
+  if (Array.isArray(dino.walkFrames) && dino.walkFrames.length > 0) {
+    dino.walkFrames.forEach((frame, idx) => {
+      frame.visible = idx === 0;
+    });
+  }
   if (dino.model) {
     dino.model.position.x = 0;
     dino.model.position.y = DINO_SPAWN_Y + dino.offsetY;
+    dino.model.position.z = 0;
   }
 }
 
@@ -441,7 +458,7 @@ function animate() {
     }
   }
 
-  updateObstacles(floorSegments, totalTime);
+  updateObstacles(floorSegments, totalTime, dt);
 
   const activeSegments = floorSegments.filter(seg => Math.abs(seg.position.z) < SEGMENT_LENGTH);
   const nearbyObstacles = activeSegments.flatMap(seg => seg.userData.obstacles || []);
