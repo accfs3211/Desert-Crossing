@@ -245,7 +245,6 @@ export class Dino {
             this.startDuck();
         } else if (!e.repeat && (e.code === 'ArrowLeft' || e.code === 'KeyA' || e.code === 'ArrowRight' || e.code === 'KeyD')) {
             e.preventDefault();
-            if (this.isDucking) return;
             if (this.laneCooldownRemaining > 0) return;
 
             const direction = (e.code === 'ArrowLeft' || e.code === 'KeyA') ? -1 : 1;
