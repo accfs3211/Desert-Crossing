@@ -391,8 +391,14 @@ window.addEventListener('keydown', (e) => {
     if (gameState.isGameOver()) return;
     isPaused = !isPaused;
     if (isPaused) {
+      if (audioSystem.pauseMusic) {
+        audioSystem.pauseMusic();
+      }
       clock.stop();
     } else {
+      if (audioSystem.resumeMusic) {
+        audioSystem.resumeMusic();
+      }
       clock.start();
       // flush any large accumulated delta so the next frame step is small
       clock.getDelta();

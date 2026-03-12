@@ -66,6 +66,16 @@ export function createAudioSystem() {
     bgm.playbackRate = Math.max(0.75, Math.min(2.0, rate));
   }
 
+  function pauseMusic() {
+    if (!unlocked) return;
+    if (bgm.paused) return;
+    bgm.pause();
+  }
+
+  function resumeMusic() {
+    startBgm();
+  }
+
   function resetForRestart() {
     bgm.currentTime = 0;
     setMusicRate(1);
@@ -75,6 +85,8 @@ export function createAudioSystem() {
   return {
     enableAutoplayUnlock,
     setMusicRate,
+    pauseMusic,
+    resumeMusic,
     resetForRestart,
     playJump: () => playSfx(jumpSfx),
     playCoin: () => playSfx(coinSfx),
